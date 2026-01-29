@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ネットワークデータフロー可視化ツール</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/vis-network.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+        .content {
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+        .control-panel {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        button {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        button:hover {
+            background: #5a67d8;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .danger {
+            background: #e53e3e;
+        }
+        .danger:hover {
+            background: #c53030;
+        }
+        #network {
+            width: 100%;
+            height: 600px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            background: white;
+        }
+        .stats-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .stat-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 5px solid #667eea;
+        }
+        .stat-card h3 {
+            color: #4a5568;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #2d3748;
+        }
+        .details-panel {
+            margin-top: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        th {
+            background: #edf2f7;
+            font-weight: 600;
+            color: #4a5568;
+        }
+        .domain-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            background: #c6f6d5;
+            color: #22543d;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+        .service-icon {
+            width: 24px;
+            height: 24px;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌐 ネットワークデータフロー可視化ツール</h1>
+            <p>このページにアクセスするだけで、自動的に通信経路を可視化します</p>
+        </div>
+        
+        <div class="content">
+            <div class="control-panel">
+                <button onclick="startMonitoring()">▶ 監視を開始</button>
+                <button onclick="stopMonitoring()">⏸ 監視を停止</button>
+                <button onclick="exportData()">📥 データをエクスポート</button>
+                <button onclick="clearData()" class="danger">🗑️ データをクリア</button>
+                <div style="margin-left: auto;">
+                    <span id="status" style="padding: 10px; background: #c6f6d5; border-radius: 5px; color: #22543d;">
+                    準備完了
+                    </span>
+                </div>
+            </div>
+            
+            <div id="network"></div>
+            
+            <div class="stats-panel">
+                <div class="stat-card">
+                    <h3>検出サーバー数</h3>
+                    <div class="value" id="serverCount">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>通信回数</h3>
+                    <div class="value" id="requestCount">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>検出サービス</h3>
+                    <div class="value" id="serviceCount">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>データ転送量</h3>
+                    <div class="value" id="dataVolume">0 KB</div>
+                </div>
+            </div>
+            
+            <div class="details-panel">
+                <h3>検出された接続先</h3>
+                <div id="domainList"></div>
+                <table id="connectionTable">
+                    <thead>
+                        <tr>
+                            <th>サービス</th>
+                            <th>ドメイン</th>
+                            <th>通信回数</th>
+                            <th>平均応答時間</th>
+                            <th>データサイズ</th>
+                            <th>タイプ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="connectionBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/vis-network.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
